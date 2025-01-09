@@ -138,7 +138,7 @@ When you see a bunch of:
 ```
 
 #### Solution
-Open `./third_party/mmg$ cat CMakeLists.txt`, then add `SET(CMAKE_C_FLAGS "-fcommon ${CMAKE_C_FLAGS}")` right below `PROJECT(mmg)`.
+Open `./third_party/mmg/CMakeLists.txt`, then add `SET(CMAKE_C_FLAGS "-fcommon ${CMAKE_C_FLAGS}")` right below `PROJECT(mmg)`.
 
 ```
 PROJECT(mmg) 
