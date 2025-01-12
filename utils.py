@@ -6,6 +6,8 @@ import logging
 from tabulate import tabulate
 import os
 from scipy.spatial import KDTree
+import trimesh
+from scipy.spatial import cKDTree
 
 def process_mesh(mesh, mesh_processing_function):
     vertices_before = mesh.vertices
@@ -100,6 +102,48 @@ def visualize(mesh, filename="Processed Mesh"):
     plotter.add_legend()
     display(plotter.show(jupyter_backend="trame"))
 
+def visualize_intersection(mesh, filename="Processed Mesh"):
+    intersections = pymesh.detect_self_intersection(mesh)
+    intersecting_faces = set(intersections.flatten())
+
+    mesh = convert_to_pyvista(mesh)
+
+    scalars = [
+        1 if i in intersecting_faces else 0
+        for i in range(mesh.n_faces)
+    ]
+    mesh.cell_data["intersections"] = scalars
+
+    plotter = pv.Plotter(notebook=True)
+
+    mesh_actor = plotter.add_mesh(
+        mesh,
+        scalars="intersections",
+        color="white",
+        show_edges=True,
+        edge_color="black",
+        line_width=0.3,
+        cmap=["white", "red"],  # White for normal, red for intersecting
+        label=filename,
+        show_scalar_bar=False
+    )
+
+    def update_clipping_plane(value):
+        new_plane = pv.Plane(center=(value, 0, 0), direction=(1, 0, 0))
+        clipped_mesh = mesh.clip_surface(new_plane, invert=False)
+        mesh_actor.mapper.SetInputData(clipped_mesh)
+        plotter.render()
+
+    plotter.add_slider_widget(
+        callback=update_clipping_plane,
+        rng=[-2, 2],
+        value=0,
+        title="Clip Plane",
+    )
+
+    plotter.add_legend()
+    display(plotter.show(jupyter_backend="trame"))
+
 def intermediate(mesh):
     temp_file = "data/temp.ply"
     pymesh.save_mesh(temp_file, mesh, ascii=True)
@@ -109,6 +153,24 @@ def intermediate(mesh):
         os.remove(temp_file)
     
     return mesh
+
+def evaluation(mesh1, mesh2):
+    before_trimesh = trimesh.Trimesh(vertices=mesh1.vertices, faces=mesh1.faces)
+    after_trimesh = trimesh.Trimesh(vertices=mesh2.vertices, faces=mesh2.faces)
+
+    before_intersections = pymesh.detect_self_intersection(mesh1)
+    after_intersections = pymesh.detect_self_intersection(mesh2)
+
+    table_data = [
+        ["Metric", "Before", "After"],
+        ["Number of vertices", len(mesh1.vertices), len(mesh2.vertices)],
+        ["Number of faces", len(mesh1.faces), len(mesh2.faces)],
+        ["Number of intersecting face pairs", len(before_intersections), len(after_intersections)],
+        ["Volume", before_trimesh.volume, after_trimesh.volume],
+        ["Area", before_trimesh.area, after_trimesh.area]
+    ]
+
+    print(tabulate(table_data, headers="firstrow", tablefmt="grid"))
 
 def extract_submesh_by_bbox(mesh, local_min, local_max):
     """
@@ -187,7 +249,7 @@ def detect_boundary_vertices(mesh):
     return boundary_mask
 
 
-def align_submesh_boundary(remaining_mesh, repaired_submesh, tolerance=4):
+def align_submesh_boundary(remaining_mesh, repaired_submesh, tolerance=1e-1):
     """
     Align the boundary vertices of the repaired submesh to the original mesh's boundary.
     """
@@ -229,3 +291,87 @@ def replace_submesh_in_original(remaining_mesh, repaired_submesh):
     merged, _ = pymesh.remove_isolated_vertices(merged)
     return merged
 
+
+def evaluate_displacement(mesh1, mesh2):
+
+    original_vertices = mesh1.vertices
+    repaired_vertices = mesh2.vertices
+
+    # Build KD-Trees for efficient nearest-neighbor search
+    original_tree = cKDTree(original_vertices)
+    repaired_tree = cKDTree(repaired_vertices)
+
+    # For each vertex in the original mesh, the distance to the nearest vertex in the repaired mesh.
+    distances_original_to_repaired, _ = original_tree.query(repaired_vertices)
+
+    # For each vertex in the repaired mesh, the distance to the nearest vertex in the original mesh.
+    distances_repaired_to_original, _ = repaired_tree.query(original_vertices)
+
+    # Combine distances for bidirectional matching
+    # Why?
+    # - Some vertices in the original mesh may not have a corresponding counterpart in the repaired mesh (e.g., due to merging or removal).
+    # - Similarly, new vertices in the repaired mesh may not have counterparts in the original mesh (e.g., due to splitting or addition).
+    all_distances = np.concatenate([distances_original_to_repaired, distances_repaired_to_original])
+
+    max_displacement = np.max(all_distances)
+    mean_displacement = np.mean(all_distances)
+
+    print(f"Max Vertex Displacement: {max_displacement}")
+    print(f"Mean Vertex Displacement: {mean_displacement}")
+
+def track_self_intersecting_faces(mesh, intersections):
+    """
+    Tracks the self-intersecting region's vertices and faces in the original mesh.
+    """
+    intersecting_faces = set(intersections.flatten())
+    intersecting_vertices = np.unique(mesh.faces[list(intersecting_faces)].flatten())
+    return intersecting_vertices, intersecting_faces
+
+def map_to_modified_mesh(original_mesh, modified_mesh, intersecting_vertices):
+    """
+    Maps the intersecting region from the original mesh to the modified mesh.
+
+
+    e.g.,
+    <Original Mesh>
+    Vertices: [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0.5, 0.5, 0.5]]
+    Faces: [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]]
+    Intersecting vertices (detected): [4].
+
+    <Modified Mesh>
+    Vertices: [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0.51, 0.51, 0.51]]
+
+    The original vertex [0.5, 0.5, 0.5] is closest to [0.51, 0.51, 0.51] in the modified mesh.
+    So, mapped vertex in modified_mesh is [4]
+    """
+    # Build a mapping from original vertices to modified vertices
+    original_to_modified = {}
+    for i, vertex in enumerate(original_mesh.vertices):
+        distances = np.linalg.norm(modified_mesh.vertices - vertex, axis=1)
+        closest_idx = np.argmin(distances)
+        if distances[closest_idx] < 1e-6:
+            original_to_modified[i] = closest_idx
+
+    # Map intersecting vertices to the modified mesh
+    mapped_vertices = [original_to_modified[v] for v in intersecting_vertices if v in original_to_modified]
+    return np.array(mapped_vertices)
+
+def extract_self_intersecting_region_from_modified(mesh, intersecting_vertices):
+    """
+    Extracts the submesh corresponding to the intersecting region from the modified mesh.
+
+    e.g.,
+    From Step 3, we know the mapped intersecting vertex is [4].
+    <Modified Mesh>
+    Vertices: [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0.51, 0.51, 0.51]]
+    Faces: [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]].
+
+    Here, we identify faces in the modified mesh that contain any of the intersecting vertices.
+    For vertex 4, all four faces ([0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4])
+    """
+    face_mask = np.any(np.isin(mesh.faces, intersecting_vertices), axis=1)
+    sub_faces = mesh.faces[face_mask]
+    submesh = pymesh.form_mesh(mesh.vertices, sub_faces)
+
+    submesh, _ = pymesh.remove_isolated_vertices(submesh)
+    return submesh, face_mask
