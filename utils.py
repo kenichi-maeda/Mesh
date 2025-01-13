@@ -249,7 +249,7 @@ def detect_boundary_vertices(mesh):
     return boundary_mask
 
 
-def align_submesh_boundary(remaining_mesh, repaired_submesh, tolerance=1e-1):
+def align_submesh_boundary(remaining_mesh, repaired_submesh, tolerance=1):
     """
     Align the boundary vertices of the repaired submesh to the original mesh's boundary.
     """
@@ -369,9 +369,82 @@ def extract_self_intersecting_region_from_modified(mesh, intersecting_vertices):
     Here, we identify faces in the modified mesh that contain any of the intersecting vertices.
     For vertex 4, all four faces ([0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4])
     """
+    # Step 1: Identify initial face mask
     face_mask = np.any(np.isin(mesh.faces, intersecting_vertices), axis=1)
     sub_faces = mesh.faces[face_mask]
+
+    # Step 2: Build the initial submesh
     submesh = pymesh.form_mesh(mesh.vertices, sub_faces)
 
-    submesh, _ = pymesh.remove_isolated_vertices(submesh)
-    return submesh, face_mask
+    # Step 3: Find adjacent faces
+    from collections import defaultdict
+
+    # Create an edge-to-face map for the entire mesh
+    edge_to_faces = defaultdict(list)
+    for face_idx, face in enumerate(mesh.faces):
+        edges = [
+            tuple(sorted((face[0], face[1]))),
+            tuple(sorted((face[1], face[2]))),
+            tuple(sorted((face[2], face[0]))),
+        ]
+        for edge in edges:
+            edge_to_faces[edge].append(face_idx)
+
+    # Collect all edges of the current submesh
+    submesh_edges = set()
+    for face in sub_faces:
+        submesh_edges.update([
+            tuple(sorted((face[0], face[1]))),
+            tuple(sorted((face[1], face[2]))),
+            tuple(sorted((face[2], face[0]))),
+        ])
+
+    # Find all adjacent faces to the submesh
+    adjacent_faces = set()
+    for edge in submesh_edges:
+        for face_idx in edge_to_faces[edge]:
+            if not face_mask[face_idx]:  # If the face is not already in the submesh
+                adjacent_faces.add(face_idx)
+
+    # Update the face mask to include adjacent faces
+    updated_face_mask = face_mask.copy()
+    updated_face_mask[list(adjacent_faces)] = True
+
+    # Step 4: Rebuild the submesh with the updated face mask
+    all_faces = mesh.faces[updated_face_mask]
+    updated_submesh = pymesh.form_mesh(mesh.vertices, all_faces)
+
+    # Step 5: Identify and remove outermost faces
+    boundary_edges = defaultdict(list)
+    for face_idx, face in enumerate(updated_submesh.faces):
+        edges = [
+            tuple(sorted((face[0], face[1]))),
+            tuple(sorted((face[1], face[2]))),
+            tuple(sorted((face[2], face[0]))),
+        ]
+        for edge in edges:
+            boundary_edges[edge].append(face_idx)
+
+    # Find boundary faces (faces with edges belonging to only one face)
+    boundary_faces = set()
+    for edge, faces in boundary_edges.items():
+        if len(faces) == 1:  # Boundary edge
+            boundary_faces.add(faces[0])
+
+    # Create a mask to exclude boundary faces
+    non_boundary_face_mask = np.ones(len(updated_submesh.faces), dtype=bool)
+    non_boundary_face_mask[list(boundary_faces)] = False
+
+    # Rebuild the submesh without boundary faces
+    final_faces = updated_submesh.faces[non_boundary_face_mask]
+    final_submesh = pymesh.form_mesh(updated_submesh.vertices, final_faces)
+
+    # Step 6: Update the face mask to reflect the removed outermost faces
+    final_face_indices = np.where(updated_face_mask)[0][non_boundary_face_mask]
+    final_face_mask = np.zeros(len(mesh.faces), dtype=bool)
+    final_face_mask[final_face_indices] = True
+
+    # Clean isolated vertices in the final submesh
+    final_submesh, _ = pymesh.remove_isolated_vertices(final_submesh)
+
+    return final_submesh, final_face_mask
