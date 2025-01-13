@@ -12,6 +12,4 @@ In the script examples, there is a file called `resolve_intersection.py`. It inc
 ### 2. Method2
 There is another file called `fix_mesh.py` that globally remeshes a given mesh. The goal of Method2 is to remesh only the intersecting area.
 
-### 3. Method3
-
 It might be possible to remove all intersecting faces and patch the resulting holes later. However, this approach entails the loss of the original mesh information, as well as the need to fill the holes...
