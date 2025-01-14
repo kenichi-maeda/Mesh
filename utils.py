@@ -448,3 +448,14 @@ def extract_self_intersecting_region_from_modified(mesh, intersecting_vertices):
     final_submesh, _ = pymesh.remove_isolated_vertices(final_submesh)
 
     return final_submesh, final_face_mask
+
+def refinement(mesh):
+    mesh, _ = pymesh.remove_duplicated_vertices(mesh)
+    mesh, _ = pymesh.remove_duplicated_faces(mesh)
+    mesh, _ = pymesh.remove_degenerated_triangles(mesh)
+    mesh = pymesh.compute_outer_hull(mesh)
+    mesh, __ = pymesh.collapse_short_edges(mesh, 1e-6)
+    mesh, __ = pymesh.remove_obtuse_triangles(mesh, 175.0, 10)
+    mesh, _ = pymesh.remove_isolated_vertices(mesh)
+    mesh = pymesh.resolve_self_intersection(mesh)
+    return mesh
