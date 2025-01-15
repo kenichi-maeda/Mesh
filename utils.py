@@ -102,6 +102,66 @@ def visualize(mesh, filename="Processed Mesh"):
     plotter.add_legend()
     display(plotter.show(jupyter_backend="trame"))
 
+def visualize_two_meshes(mesh1, mesh2, filename1="Mesh 1", filename2="Mesh 2"):
+    mesh1 = convert_to_pyvista(mesh1)
+    mesh2 = convert_to_pyvista(mesh2)
+    plotter = pv.Plotter(shape=(1, 2), notebook=True)
+
+    plotter.subplot(0, 0)
+    mesh_actor1 = plotter.add_mesh(
+        mesh1,
+        color="white",
+        show_edges=True,
+        edge_color="black",
+        label=filename1,
+        line_width=0.3
+    )
+    plotter.add_text("Mesh 1", position="upper_left", font_size=10)
+
+    def update_clipping_plane_mesh1(value):
+        new_plane = pv.Plane(center=(value, 0, 0), direction=(1, 0, 0))
+        clipped_mesh = mesh1.clip_surface(new_plane, invert=False)
+        mesh_actor1.mapper.SetInputData(clipped_mesh)
+        plotter.render()
+
+    plotter.add_slider_widget(
+        callback=update_clipping_plane_mesh1,
+        rng=[-2, 2],
+        value=0,
+        title="Clip Plane Mesh 1",
+        pointa=(0.2, 0.9),
+        pointb=(0.8, 0.9)
+    )
+
+    plotter.subplot(0, 1)
+    mesh_actor2 = plotter.add_mesh(
+        mesh2,
+        color="white",
+        show_edges=True,
+        edge_color="black",
+        label=filename2,
+        line_width=0.3
+    )
+    plotter.add_text("Mesh 2", position="upper_left", font_size=10)
+
+    def update_clipping_plane_mesh2(value):
+        new_plane = pv.Plane(center=(value, 0, 0), direction=(1, 0, 0))
+        clipped_mesh = mesh2.clip_surface(new_plane, invert=False)
+        mesh_actor2.mapper.SetInputData(clipped_mesh)
+        plotter.render()
+
+    plotter.add_slider_widget(
+        callback=update_clipping_plane_mesh2,
+        rng=[-2, 2],
+        value=0,
+        title="Clip Plane Mesh 2",
+        pointa=(0.2, 0.9),
+        pointb=(0.8, 0.9)
+    )
+
+    plotter.add_legend()
+    display(plotter.show(jupyter_backend="trame"))
+
 def visualize_intersection(mesh, filename="Processed Mesh"):
     intersections = pymesh.detect_self_intersection(mesh)
     intersecting_faces = set(intersections.flatten())
