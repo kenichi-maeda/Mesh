@@ -183,7 +183,7 @@ Then you will see something like:
 In this particular example, navigate to
 `/home/USER/PyMesh/third_party/cgal/Straight_skeleton_2/include/CGAL/Straight_skeleton_2/Straight_skeleton_builder_2_impl.h`.
 
-You would need to change a couple of .h files as you move on.
+You might need to change a couple of .h files as you move on (e.g., `convexity_check_2_impl.h`, `AABB_traits.h`, etc.).
 
 
 ### Error5
