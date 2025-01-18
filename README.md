@@ -1,12 +1,8 @@
 # PyMesh Self Intersection Repair
 
-## Current Issue
-
-PyMesh provides `pymesh.resolve_self_intersection()`. <br>
-If a mesh is simple, this function can resolve all self intersections. However, if it is complicated, it leaves some intersections.
-
 ## How to resolve?
-`pymesh.compute_outerhull()` automatically resolves all self intersections.
+`pymesh.resolve_self_intersection()` can fix the issue.
+`pymesh.compute_outerhull()` also automatically resolves all self intersections.
 
 ### 1. Method1
 Alternatively, we can simplify vertices of the input mesh by rounding them, along with repeated calls to `pymesh.resolve_self_intersection()`.
