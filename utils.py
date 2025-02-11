@@ -332,6 +332,11 @@ def full_evaluation(original, mesh1, mesh2, mesh3):
     after_trimesh2 = trimesh.Trimesh(vertices=mesh2.vertices, faces=mesh2.faces)
     after_trimesh3 = trimesh.Trimesh(vertices=mesh3.vertices, faces=mesh3.faces)
 
+    before_pvmesh = pv.PolyData(original.vertices, np.hstack([np.full((original.faces.shape[0], 1), 3), original.faces]).astype(np.int64).flatten())
+    after_pvmesh1 = pv.PolyData(mesh1.vertices, np.hstack([np.full((mesh1.faces.shape[0], 1), 3), mesh1.faces]).astype(np.int64).flatten())
+    after_pvmesh2 = pv.PolyData(mesh2.vertices, np.hstack([np.full((mesh2.faces.shape[0], 1), 3), mesh2.faces]).astype(np.int64).flatten())
+    after_pvmesh3 = pv.PolyData(mesh3.vertices, np.hstack([np.full((mesh3.faces.shape[0], 1), 3), mesh3.faces]).astype(np.int64).flatten())
+
     before_intersections = pymesh.detect_self_intersection(original)
     after_intersections1 = pymesh.detect_self_intersection(mesh1)
     after_intersections2 = pymesh.detect_self_intersection(mesh2)
@@ -344,10 +349,48 @@ def full_evaluation(original, mesh1, mesh2, mesh3):
         ["Number of intersecting face pairs", len(before_intersections), len(after_intersections1), len(after_intersections2), len(after_intersections3)],
         ["Volume", before_trimesh.volume, after_trimesh1.volume, after_trimesh2.volume, after_trimesh3.volume],
         ["Area", before_trimesh.area, after_trimesh1.area, after_trimesh2.area, after_trimesh3.area],
-        ["Mean displacement", "NaN", _evaluate_displacement(original, mesh1), _evaluate_displacement(original, mesh2), _evaluate_displacement(original, mesh3) ]
+        ["Mean displacement", "NaN", _evaluate_displacement(original, mesh1), _evaluate_displacement(original, mesh2), _evaluate_displacement(original, mesh3)],
+        ["Mean aspect ratio", _evaluate_aspect_ratio(before_pvmesh), _evaluate_aspect_ratio(after_pvmesh1), _evaluate_aspect_ratio(after_pvmesh2), _evaluate_aspect_ratio(after_pvmesh3)],
+        ["Mean condition", _evaluate_condition(before_pvmesh), _evaluate_condition(after_pvmesh1), _evaluate_condition(after_pvmesh2), _evaluate_condition(after_pvmesh3)],
+        ["Mean max angle", _evaluate_max_angle(before_pvmesh),  _evaluate_max_angle(after_pvmesh1), _evaluate_max_angle(after_pvmesh2), _evaluate_max_angle(after_pvmesh3)],
+        ["Mean scaled jacobian", _evaluate_scaled_jacobian(before_pvmesh), _evaluate_scaled_jacobian(after_pvmesh1), _evaluate_scaled_jacobian(after_pvmesh2), _evaluate_scaled_jacobian(after_pvmesh3)],
+        ["Intact vertices (%)", "Nan", _evaluate_intact_vertices(original, mesh1), _evaluate_intact_vertices(original, mesh2), _evaluate_intact_vertices(original, mesh3)]
     ]
 
     print(tabulate(table_data, headers="firstrow", tablefmt="grid"))
+
+def _evaluate_aspect_ratio(pvmesh):
+    qual = pvmesh.compute_cell_quality(quality_measure='aspect_ratio')
+    quality_array = qual['CellQuality']
+    return quality_array.mean()
+
+def _evaluate_condition(pvmesh):
+    qual = pvmesh.compute_cell_quality(quality_measure='condition')
+    quality_array = qual['CellQuality']
+    return quality_array.mean()
+
+def _evaluate_max_angle(pvmesh):
+    qual = pvmesh.compute_cell_quality(quality_measure='max_angle')
+    quality_array = qual['CellQuality']
+    return quality_array.mean()
+
+def _evaluate_scaled_jacobian(pvmesh):
+    qual = pvmesh.compute_cell_quality(quality_measure='scaled_jacobian')
+    quality_array = qual['CellQuality']
+    return quality_array.mean()
+
+def _evaluate_intact_vertices(original_mesh, repaired_mesh):
+    original_vertices = original_mesh.vertices
+    repaired_vertices = repaired_mesh.vertices
+
+    original_set = set(map(tuple, original_vertices))
+    repaired_set = set(map(tuple, repaired_vertices))
+
+    intact_count = len(original_set.intersection(repaired_set))
+    intact_percentage = (intact_count / len(original_set)) * 100
+
+    return intact_percentage
+
 
 def extract_submesh_by_bbox(mesh, local_min, local_max):
     """
@@ -780,3 +823,24 @@ def repair_with_local_remesh(mesh):
     repaired_full = replace_submesh_in_original(remaining_mesh, aligned_submesh)
     final = refinement(repaired_full)
     return final
+
+
+def compute_average_edge_length(mesh):
+    """Compute the average edge length of a mesh by extracting unique edges."""
+    faces = mesh.faces  # Get face connectivity
+    vertices = mesh.vertices  # Get vertex coordinates
+
+    # Extract all edges (each face contributes 3 edges)
+    edges = np.vstack([
+        faces[:, [0, 1]],  # Edge between vertex 0 and 1
+        faces[:, [1, 2]],  # Edge between vertex 1 and 2
+        faces[:, [2, 0]]   # Edge between vertex 2 and 0
+    ])
+
+    # Remove duplicate edges (sorting ensures unique representation)
+    edges = np.unique(np.sort(edges, axis=1), axis=0)
+
+    # Compute edge lengths
+    edge_lengths = np.linalg.norm(vertices[edges[:, 0]] - vertices[edges[:, 1]], axis=1)
+
+    return np.mean(edge_lengths)
