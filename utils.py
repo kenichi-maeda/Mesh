@@ -10,6 +10,7 @@ import trimesh
 from scipy.spatial import cKDTree
 from numpy.linalg import norm
 import pymeshfix
+import meshlib.mrmeshpy as mrmesh
 
 def process_mesh(mesh, mesh_processing_function):
     vertices_before = mesh.vertices
@@ -73,7 +74,7 @@ def convert_to_pyvista(mesh):
     return pv.PolyData(vertices, faces_flat)
 
 
-def visualize(mesh, filename="Processed Mesh"):
+def visualize(mesh, filename="Processed Mesh", min=-2, max=2):
 
     mesh = convert_to_pyvista(mesh)
     plotter = pv.Plotter(notebook=True)
@@ -96,7 +97,7 @@ def visualize(mesh, filename="Processed Mesh"):
 
     plotter.add_slider_widget(
         callback=update_clipping_plane,
-        rng=[-2, 2],
+        rng=[min, max],
         value=0,
         title="Clip Plane",
     )
@@ -121,7 +122,7 @@ def visualize_two_meshes(mesh1, mesh2, filename1="Mesh 1", filename2="Mesh 2"):
     plotter.add_text("Mesh 1", position="upper_left", font_size=10)
 
     def update_clipping_plane_mesh1(value):
-        new_plane = pv.Plane(center=(value, 0, 0), direction=(1, 0, 0))
+        new_plane = pv.Plane(center=(value, 0, 0), direction=(3, 1, 0))
         clipped_mesh = mesh1.clip_surface(new_plane, invert=False)
         mesh_actor1.mapper.SetInputData(clipped_mesh)
         plotter.render()
@@ -164,7 +165,7 @@ def visualize_two_meshes(mesh1, mesh2, filename1="Mesh 1", filename2="Mesh 2"):
     plotter.add_legend()
     display(plotter.show(jupyter_backend="trame"))
 
-def visualize_three_meshes(mesh1, mesh2, mesh3, filename1="Mesh 1", filename2="Mesh 2", filename3="Mesh 3"):
+def visualize_three_meshes(mesh1, mesh2, mesh3, filename1="Mesh 1", filename2="Mesh 2", filename3="Mesh 3", min=-2, max=2):
     mesh1 = convert_to_pyvista(mesh1)
     mesh2 = convert_to_pyvista(mesh2)
     mesh3 = convert_to_pyvista(mesh3)
@@ -191,7 +192,7 @@ def visualize_three_meshes(mesh1, mesh2, mesh3, filename1="Mesh 1", filename2="M
     
     plotter.add_slider_widget(
         callback=update_clipping_plane_mesh1,
-        rng=[-2, 2],
+        rng=[min, max],
         value=0,
         title="Clip Plane Mesh 1",
         pointa=(0.2, 0.9),
@@ -218,7 +219,7 @@ def visualize_three_meshes(mesh1, mesh2, mesh3, filename1="Mesh 1", filename2="M
     
     plotter.add_slider_widget(
         callback=update_clipping_plane_mesh2,
-        rng=[-2, 2],
+        rng=[min, max],
         value=0,
         title="Clip Plane Mesh 2",
         pointa=(0.2, 0.9),
@@ -245,9 +246,193 @@ def visualize_three_meshes(mesh1, mesh2, mesh3, filename1="Mesh 1", filename2="M
     
     plotter.add_slider_widget(
         callback=update_clipping_plane_mesh3,
-        rng=[-2, 2],
+        rng=[min, max],
         value=0,
         title="Clip Plane Mesh 3",
+        pointa=(0.2, 0.9),
+        pointb=(0.8, 0.9)
+    )
+    
+    plotter.add_legend()
+    display(plotter.show(jupyter_backend="trame"))
+
+def visualize_six_meshes(original, mesh1, mesh2, mesh3, mesh4, mesh5, min=-2, max=2):
+    intersections = pymesh.detect_self_intersection(original)
+    intersecting_faces = set(intersections.flatten())
+    
+    original = convert_to_pyvista(original)
+    mesh1 = convert_to_pyvista(mesh1)
+    mesh2 = convert_to_pyvista(mesh2)
+    mesh3 = convert_to_pyvista(mesh3)
+    mesh4 = convert_to_pyvista(mesh4)
+    mesh5 = convert_to_pyvista(mesh5)
+    
+    plotter = pv.Plotter(shape=(2, 3), notebook=True)
+
+    # Original
+    scalars = [
+        1 if i in intersecting_faces else 0
+        for i in range(original.n_faces)
+    ]
+    original.cell_data["intersections"] = scalars
+    plotter.subplot(0, 0)
+    original_actor = plotter.add_mesh(
+        original,
+        color="white",
+        show_edges=True,
+        edge_color="black",
+        label="Original",
+        line_width=0.3,
+        scalars="intersections",
+        cmap=["white", "red"], 
+        show_scalar_bar=False
+    )
+    plotter.add_text("Original", position="upper_left", font_size=10)
+    
+    def update_clipping_plane_original(value):
+        new_plane = pv.Plane(center=(value, 0, 0), direction=(1, 0, 0))
+        clipped_mesh = original.clip_surface(new_plane, invert=False)
+        original_actor.mapper.SetInputData(clipped_mesh)
+        plotter.render()
+    
+    plotter.add_slider_widget(
+        callback=update_clipping_plane_original,
+        rng=[min, max],
+        value=0,
+        title="Clip Plane Original",
+    )
+
+    # Mesh 1
+    plotter.subplot(0, 1)
+    mesh_actor1 = plotter.add_mesh(
+        mesh1,
+        color="white",
+        show_edges=True,
+        edge_color="black",
+        label="Mesh 1",
+        line_width=0.3
+    )
+    plotter.add_text("Mesh 1", position="upper_left", font_size=10)
+    
+    def update_clipping_plane_mesh1(value):
+        new_plane = pv.Plane(center=(value, 0, 0), direction=(1, 0, 0))
+        clipped_mesh = mesh1.clip_surface(new_plane, invert=False)
+        mesh_actor1.mapper.SetInputData(clipped_mesh)
+        plotter.render()
+    
+    plotter.add_slider_widget(
+        callback=update_clipping_plane_mesh1,
+        rng=[min, max],
+        value=0,
+        title="Clip Plane Mesh 1",
+        pointa=(0.2, 0.9),
+        pointb=(0.8, 0.9)
+    )
+
+    # Mesh 2
+    plotter.subplot(0, 2)
+    mesh_actor2 = plotter.add_mesh(
+        mesh2,
+        color="white",
+        show_edges=True,
+        edge_color="black",
+        label="Mesh 2",
+        line_width=0.3
+    )
+    plotter.add_text("Mesh 2", position="upper_left", font_size=10)
+    
+    def update_clipping_plane_mesh2(value):
+        new_plane = pv.Plane(center=(value, 0, 0), direction=(1, 0, 0))
+        clipped_mesh = mesh2.clip_surface(new_plane, invert=False)
+        mesh_actor2.mapper.SetInputData(clipped_mesh)
+        plotter.render()
+    
+    plotter.add_slider_widget(
+        callback=update_clipping_plane_mesh2,
+        rng=[min, max],
+        value=0,
+        title="Clip Plane Mesh 2",
+        pointa=(0.2, 0.9),
+        pointb=(0.8, 0.9)
+    )
+    
+    # Mesh 3
+    plotter.subplot(1, 0)
+    mesh_actor3 = plotter.add_mesh(
+        mesh3,
+        color="white",
+        show_edges=True,
+        edge_color="black",
+        label="Mesh 3",
+        line_width=0.3
+    )
+    plotter.add_text("Mesh 3", position="upper_left", font_size=10)
+    
+    def update_clipping_plane_mesh3(value):
+        new_plane = pv.Plane(center=(value, 0, 0), direction=(1, 0, 0))
+        clipped_mesh = mesh3.clip_surface(new_plane, invert=False)
+        mesh_actor3.mapper.SetInputData(clipped_mesh)
+        plotter.render()
+    
+    plotter.add_slider_widget(
+        callback=update_clipping_plane_mesh3,
+        rng=[min, max],
+        value=0,
+        title="Clip Plane Mesh 3",
+        pointa=(0.2, 0.9),
+        pointb=(0.8, 0.9)
+    )
+
+    # Mesh 4
+    plotter.subplot(1, 1)
+    mesh_actor4 = plotter.add_mesh(
+        mesh4,
+        color="white",
+        show_edges=True,
+        edge_color="black",
+        label="Mesh 4",
+        line_width=0.3
+    )
+    plotter.add_text("Mesh 4", position="upper_left", font_size=10)
+    
+    def update_clipping_plane_mesh4(value):
+        new_plane = pv.Plane(center=(value, 0, 0), direction=(1, 0, 0))
+        clipped_mesh = mesh4.clip_surface(new_plane, invert=False)
+        mesh_actor4.mapper.SetInputData(clipped_mesh)
+        plotter.render()
+    
+    plotter.add_slider_widget(
+        callback=update_clipping_plane_mesh4,
+        rng=[min, max],
+        value=0,
+        title="Clip Plane Mesh 4",
+        pointa=(0.2, 0.9),
+        pointb=(0.8, 0.9)
+    )
+
+    # Mesh 5
+    plotter.subplot(1, 2)
+    mesh_actor5 = plotter.add_mesh(
+        mesh3,
+        color="white",
+        show_edges=True,
+        edge_color="black",
+        label="Mesh 5",
+        line_width=0.3
+    )
+    plotter.add_text("Mesh 5", position="upper_left", font_size=10)
+    
+    def update_clipping_plane_mesh5(value):
+        new_plane = pv.Plane(center=(value, 0, 0), direction=(1, 0, 0))
+        clipped_mesh = mesh5.clip_surface(new_plane, invert=False)
+        mesh_actor5.mapper.SetInputData(clipped_mesh)
+        plotter.render()
+    
+    plotter.add_slider_widget(
+        callback=update_clipping_plane_mesh5,
+        rng=[min, max],
+        value=0,
+        title="Clip Plane Mesh 5",
         pointa=(0.2, 0.9),
         pointb=(0.8, 0.9)
     )
@@ -290,7 +475,7 @@ def visualize_intersection(mesh, filename="Processed Mesh"):
 
     plotter.add_slider_widget(
         callback=update_clipping_plane,
-        rng=[-2, 2],
+        rng=[min, max],
         value=0,
         title="Clip Plane",
     )
@@ -321,7 +506,8 @@ def evaluation(mesh1, mesh2):
         ["Number of faces", len(mesh1.faces), len(mesh2.faces)],
         ["Number of intersecting face pairs", len(before_intersections), len(after_intersections)],
         ["Volume", before_trimesh.volume, after_trimesh.volume],
-        ["Area", before_trimesh.area, after_trimesh.area]
+        ["Area", before_trimesh.area, after_trimesh.area],
+        ["Intact vertices (%)", "Nan", _evaluate_intact_vertices(mesh1, mesh2)]
     ]
 
     print(tabulate(table_data, headers="firstrow", tablefmt="grid"))
@@ -353,8 +539,10 @@ def full_evaluation(original, mesh1, mesh2, mesh3):
         ["Mean aspect ratio", _evaluate_aspect_ratio(before_pvmesh), _evaluate_aspect_ratio(after_pvmesh1), _evaluate_aspect_ratio(after_pvmesh2), _evaluate_aspect_ratio(after_pvmesh3)],
         ["Mean condition", _evaluate_condition(before_pvmesh), _evaluate_condition(after_pvmesh1), _evaluate_condition(after_pvmesh2), _evaluate_condition(after_pvmesh3)],
         ["Mean max angle", _evaluate_max_angle(before_pvmesh),  _evaluate_max_angle(after_pvmesh1), _evaluate_max_angle(after_pvmesh2), _evaluate_max_angle(after_pvmesh3)],
+        ["Mean min angle", _evaluate_min_angle(before_pvmesh),  _evaluate_min_angle(after_pvmesh1), _evaluate_min_angle(after_pvmesh2), _evaluate_min_angle(after_pvmesh3)],
         ["Mean scaled jacobian", _evaluate_scaled_jacobian(before_pvmesh), _evaluate_scaled_jacobian(after_pvmesh1), _evaluate_scaled_jacobian(after_pvmesh2), _evaluate_scaled_jacobian(after_pvmesh3)],
-        ["Intact vertices (%)", "Nan", _evaluate_intact_vertices(original, mesh1), _evaluate_intact_vertices(original, mesh2), _evaluate_intact_vertices(original, mesh3)]
+        ["Intact vertices (%)", "Nan", _evaluate_intact_vertices2(original, mesh1), _evaluate_intact_vertices2(original, mesh2), _evaluate_intact_vertices2(original, mesh3)],
+        ["Mean Angle Deviation", _evaluate_angle_deviation(original), _evaluate_angle_deviation(mesh1), _evaluate_angle_deviation(mesh2), _evaluate_angle_deviation(mesh3)]
     ]
 
     print(tabulate(table_data, headers="firstrow", tablefmt="grid"))
@@ -374,6 +562,11 @@ def _evaluate_max_angle(pvmesh):
     quality_array = qual['CellQuality']
     return quality_array.mean()
 
+def _evaluate_min_angle(pvmesh):
+    qual = pvmesh.compute_cell_quality(quality_measure='min_angle')
+    quality_array = qual['CellQuality']
+    return quality_array.mean()
+
 def _evaluate_scaled_jacobian(pvmesh):
     qual = pvmesh.compute_cell_quality(quality_measure='scaled_jacobian')
     quality_array = qual['CellQuality']
@@ -390,6 +583,52 @@ def _evaluate_intact_vertices(original_mesh, repaired_mesh):
     intact_percentage = (intact_count / len(original_set)) * 100
 
     return intact_percentage
+
+def _evaluate_intact_vertices2(original_mesh, repaired_mesh, decimals=4):
+    original_rounded = np.round(original_mesh.vertices, decimals=decimals)
+    repaired_rounded = np.round(repaired_mesh.vertices, decimals=decimals)
+
+    original_set = set(map(tuple, original_rounded))
+    repaired_set = set(map(tuple, repaired_rounded))
+
+    intact_count = len(original_set.intersection(repaired_set))
+
+    intact_percentage = (intact_count / len(original_set)) * 100.0
+    return intact_percentage
+
+
+def _evaluate_angle_deviation(mesh):
+
+    vertices = mesh.vertices
+    faces = mesh.faces
+    
+    deviations = []
+
+    for face in faces:
+        tri_pts = vertices[face]
+
+        # Compute angles at each vertex of the triangle
+        for i in range(3):
+            j = (i + 1) % 3
+            k = (i + 2) % 3
+
+            # Vector from current vertex to the other two vertices
+            v1 = tri_pts[j] - tri_pts[i]
+            v2 = tri_pts[k] - tri_pts[i]
+
+            denom = (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-14)
+            cos_angle = np.dot(v1, v2) / denom
+
+            # Clamp to avoid floating-precision issues outside [-1, 1]
+            cos_angle = np.clip(cos_angle, -1.0, 1.0)
+
+            angle_degrees = np.degrees(np.arccos(cos_angle))
+            deviations.append(abs(angle_degrees - 60.0))
+
+    if len(deviations) == 0:
+        return 0.0
+
+    return np.mean(deviations)
 
 
 def extract_submesh_by_bbox(mesh, local_min, local_max):
@@ -602,6 +841,29 @@ def map_to_modified_mesh(original_mesh, modified_mesh, intersecting_vertices):
     mapped_vertices = [original_to_modified[v] for v in intersecting_vertices if v in original_to_modified]
     return np.array(mapped_vertices)
 
+def map_to_modified_mesh2(original_mesh, modified_mesh, intersecting_vertices):
+    """
+    Optimized version of mapping the intersecting region from the original mesh to the modified mesh.
+
+    """
+
+    original_vertices = original_mesh.vertices
+    modified_vertices = modified_mesh.vertices
+
+    # Construct KDTree for fast nearest-neighbor search
+    tree = cKDTree(modified_vertices)
+
+    # Find the nearest modified vertex for each original intersecting vertex
+    distances, nearest_indices = tree.query(original_vertices[intersecting_vertices], k=1)
+
+    # Filter out any mappings where the distance is too large (optional thresholding)
+    threshold = 1e-6
+    mapped_vertices = np.array([
+        nearest_indices[i] for i in range(len(intersecting_vertices)) if distances[i] < threshold
+    ])
+
+    return mapped_vertices
+
 def extract_self_intersecting_region_from_modified(mesh, intersecting_vertices):
     """
     Extracts the submesh corresponding to the intersecting region from the modified mesh.
@@ -804,7 +1066,7 @@ def repair_with_local_remesh(mesh):
     intersections = pymesh.detect_self_intersection(mesh)
     intersecting_vertices, intersecting_faces = track_self_intersecting_faces(mesh, intersections)
     outer_hull = pymesh.compute_outer_hull(mesh)
-    mapped_vertices = map_to_modified_mesh(mesh, outer_hull, intersecting_vertices)
+    mapped_vertices = map_to_modified_mesh2(mesh, outer_hull, intersecting_vertices)
     submesh, face_mask = extract_self_intersecting_region_from_modified(outer_hull, mapped_vertices)
     remaining_mesh = extract_remaining_mesh(outer_hull, face_mask)
 
@@ -819,7 +1081,7 @@ def repair_with_local_remesh(mesh):
             repaired_components.append(repaired_component)
         repaired_submesh = pymesh.merge_meshes(repaired_components)
 
-    aligned_submesh = align_submesh_boundary(remaining_mesh, repaired_submesh)
+    aligned_submesh = align_submesh_boundary2(remaining_mesh, repaired_submesh)
     repaired_full = replace_submesh_in_original(remaining_mesh, aligned_submesh)
     final = refinement(repaired_full)
     return final
@@ -837,10 +1099,113 @@ def compute_average_edge_length(mesh):
         faces[:, [2, 0]]   # Edge between vertex 2 and 0
     ])
 
-    # Remove duplicate edges (sorting ensures unique representation)
+    # Remove duplicate edges
     edges = np.unique(np.sort(edges, axis=1), axis=0)
 
     # Compute edge lengths
     edge_lengths = np.linalg.norm(vertices[edges[:, 0]] - vertices[edges[:, 1]], axis=1)
 
     return np.mean(edge_lengths)
+
+def repair_meshlib(path, details=0.08):
+    mesh = mrmesh.loadMesh(path)
+
+    # Fix mesh
+    mrmesh.fixSelfIntersections(mesh, details)
+
+    # Revert to pymesh
+    vertices = np.array([list(v) for v in mesh.points.vec]) 
+    faces = []
+    valid_faces = mesh.topology.getValidFaces() 
+    for f in valid_faces:
+        verts = mesh.topology.getTriVerts(f) 
+        faces.append([verts[0].get(), verts[1].get(), verts[2].get()]) 
+    faces = np.array(faces, dtype=np.int32)  
+
+    return pymesh.form_mesh(vertices, faces)
+
+def repair_contour(mesh,  voxel_size=0.01):
+    vertices = np.array(mesh.vertices, dtype=np.float32)
+    faces = np.array(mesh.faces, dtype=np.int32)
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+
+    # Voxelization
+    voxelized = mesh.voxelized(voxel_size)
+    # Convert to a NumPy array
+    voxel_indices = voxelized.sparse_indices
+    grid_shape = voxelized.shape
+    voxel_mesh = voxelized.as_boxes()  # Convert voxels to a mesh of small cubes
+
+    label_array = np.zeros(grid_shape, dtype=np.uint16)
+
+    # Fill the voxel grid with label '1'
+    for voxel in voxel_indices:
+        label_array[tuple(voxel)] = 1
+
+    grid = pv.ImageData(dimensions=label_array.shape)
+    grid.spacing = (voxel_size, voxel_size, voxel_size)  # Set voxel spacing
+
+    # Attach label data to the grid
+    grid.point_data["labels"] = label_array.flatten(order="F")  
+
+    # Extract mesh using contour_labeled
+    contours = grid.contour_labeled(smoothing=True, output_mesh_type='triangles')
+
+    # Revert to pymesh
+    vertices = contours.points 
+    faces = contours.faces.reshape(-1, 4)[:, 1:]
+
+    return pymesh.form_mesh(vertices, faces)
+
+
+def compute_median_edge_length(mesh):
+    """
+    Compute the median edge length of a mesh. 
+    """
+    face_indices = mesh.faces
+    verts = mesh.vertices
+    
+    edge_lengths = []
+    for f in face_indices:
+        # Each face has 3 edges: (f[0], f[1]), (f[1], f[2]), (f[2], f[0])
+        e1 = np.linalg.norm(verts[f[0]] - verts[f[1]])
+        e2 = np.linalg.norm(verts[f[1]] - verts[f[2]])
+        e3 = np.linalg.norm(verts[f[2]] - verts[f[0]])
+        edge_lengths.extend([e1, e2, e3])
+    
+    return np.median(edge_lengths)
+
+def choose_tolerance_by_median_edge(mesh, multiple=4):
+    """
+    Choose a snapping tolerance as some multiple of the median edge length.
+    """
+    med_edge = compute_median_edge_length(mesh)
+    return multiple * med_edge
+
+def align_submesh_boundary2(remaining_mesh, repaired_submesh):
+    """
+    Align the boundary vertices of the repaired submesh to the original mesh's boundary.
+    """
+    tolerance = choose_tolerance_by_median_edge(remaining_mesh)
+
+    # Identify boundary vertices
+    original_boundary = detect_boundary_vertices(remaining_mesh)
+    repaired_boundary = detect_boundary_vertices(repaired_submesh)
+
+    # Build KDTree for original mesh boundary vertices
+    original_vertices = remaining_mesh.vertices
+    repaired_vertices = repaired_submesh.vertices
+    tree = KDTree(original_vertices[original_boundary])
+
+    repaired_vertices = repaired_submesh.vertices.copy()
+    # Snap repaired boundary vertices to original mesh
+    for idx in np.where(repaired_boundary)[0]:  # Iterating over the indices of vertices marked as boundary vertices
+        dist, nearest_idx = tree.query(repaired_vertices[idx], distance_upper_bound=tolerance)
+        if dist < tolerance:
+            # For example, suppose tolerance = 0.2
+            # [1.1, 0, 0] becomes [1.0, 0, 0]
+            repaired_vertices[idx] = original_vertices[original_boundary][nearest_idx]
+
+    # Rebuild submesh with aligned vertices
+    repaired_submesh = pymesh.form_mesh(repaired_vertices, repaired_submesh.faces)
+    return repaired_submesh
