@@ -264,7 +264,7 @@ def visualize_six_meshes(original, mesh1, mesh2, mesh3, mesh4, mesh5, min=-2, ma
     mesh1 = convert_to_pyvista(mesh1)
     mesh2 = convert_to_pyvista(mesh2)
     mesh3 = convert_to_pyvista(mesh3)
-    mesh4 = convert_to_pyvista(mesh4)
+    #mesh4 = convert_to_pyvista(mesh4)
     mesh5 = convert_to_pyvista(mesh5)
     
     plotter = pv.Plotter(shape=(2, 3), notebook=True)
@@ -543,6 +543,48 @@ def full_evaluation(original, mesh1, mesh2, mesh3):
         ["Mean scaled jacobian", _evaluate_scaled_jacobian(before_pvmesh), _evaluate_scaled_jacobian(after_pvmesh1), _evaluate_scaled_jacobian(after_pvmesh2), _evaluate_scaled_jacobian(after_pvmesh3)],
         ["Intact vertices (%)", "Nan", _evaluate_intact_vertices2(original, mesh1), _evaluate_intact_vertices2(original, mesh2), _evaluate_intact_vertices2(original, mesh3)],
         ["Mean Angle Deviation", _evaluate_angle_deviation(original), _evaluate_angle_deviation(mesh1), _evaluate_angle_deviation(mesh2), _evaluate_angle_deviation(mesh3)]
+    ]
+
+    print(tabulate(table_data, headers="firstrow", tablefmt="grid"))
+
+def full_evaluation2(original, mesh1, mesh2, mesh3, mesh4, mesh5):
+    mesh4 = pyvista_to_pymesh(mesh4)
+    before_trimesh = trimesh.Trimesh(vertices=original.vertices, faces=original.faces)
+    after_trimesh1 = trimesh.Trimesh(vertices=mesh1.vertices, faces=mesh1.faces)
+    after_trimesh2 = trimesh.Trimesh(vertices=mesh2.vertices, faces=mesh2.faces)
+    after_trimesh3 = trimesh.Trimesh(vertices=mesh3.vertices, faces=mesh3.faces)
+    after_trimesh4 = trimesh.Trimesh(vertices=mesh4.vertices, faces=mesh4.faces)
+    after_trimesh5 = trimesh.Trimesh(vertices=mesh5.vertices, faces=mesh5.faces)
+
+    before_pvmesh = pv.PolyData(original.vertices, np.hstack([np.full((original.faces.shape[0], 1), 3), original.faces]).astype(np.int64).flatten())
+    after_pvmesh1 = pv.PolyData(mesh1.vertices, np.hstack([np.full((mesh1.faces.shape[0], 1), 3), mesh1.faces]).astype(np.int64).flatten())
+    after_pvmesh2 = pv.PolyData(mesh2.vertices, np.hstack([np.full((mesh2.faces.shape[0], 1), 3), mesh2.faces]).astype(np.int64).flatten())
+    after_pvmesh3 = pv.PolyData(mesh3.vertices, np.hstack([np.full((mesh3.faces.shape[0], 1), 3), mesh3.faces]).astype(np.int64).flatten())
+    after_pvmesh4 = pv.PolyData(mesh4.vertices, np.hstack([np.full((mesh4.faces.shape[0], 1), 3), mesh4.faces]).astype(np.int64).flatten())
+    after_pvmesh5 = pv.PolyData(mesh5.vertices, np.hstack([np.full((mesh5.faces.shape[0], 1), 3), mesh5.faces]).astype(np.int64).flatten())
+
+    before_intersections = pymesh.detect_self_intersection(original)
+    after_intersections1 = pymesh.detect_self_intersection(mesh1)
+    after_intersections2 = pymesh.detect_self_intersection(mesh2)
+    after_intersections3 = pymesh.detect_self_intersection(mesh3)
+    after_intersections4 = pymesh.detect_self_intersection(mesh4)
+    after_intersections5 = pymesh.detect_self_intersection(mesh5)
+
+    table_data = [
+        ["Metric", "Original", "Method1", "Method2", "Method3", "Method4", "Method5"],
+        ["Number of vertices", len(original.vertices), len(mesh1.vertices), len(mesh2.vertices), len(mesh3.vertices), len(mesh4.vertices), len(mesh5.vertices)],
+        ["Number of faces", len(original.faces),len(mesh1.faces), len(mesh2.faces), len(mesh3.faces), len(mesh4.faces), len(mesh5.faces)],
+        ["Number of intersecting face pairs", len(before_intersections), len(after_intersections1), len(after_intersections2), len(after_intersections3), len(after_intersections4), len(after_intersections5)],
+        ["Volume", before_trimesh.volume, after_trimesh1.volume, after_trimesh2.volume, after_trimesh3.volume, after_trimesh4.volume, after_trimesh5.volume],
+        ["Area", before_trimesh.area, after_trimesh1.area, after_trimesh2.area, after_trimesh3.area, after_trimesh4.area, after_trimesh5.area],
+        ["Mean displacement", "NaN", _evaluate_displacement(original, mesh1), _evaluate_displacement(original, mesh2), _evaluate_displacement(original, mesh3), _evaluate_displacement(original, mesh4), _evaluate_displacement(original, mesh5)],
+        ["Mean aspect ratio", _evaluate_aspect_ratio(before_pvmesh), _evaluate_aspect_ratio(after_pvmesh1), _evaluate_aspect_ratio(after_pvmesh2), _evaluate_aspect_ratio(after_pvmesh3), _evaluate_aspect_ratio(after_pvmesh4), _evaluate_aspect_ratio(after_pvmesh5)],
+        ["Mean condition", _evaluate_condition(before_pvmesh), _evaluate_condition(after_pvmesh1), _evaluate_condition(after_pvmesh2), _evaluate_condition(after_pvmesh3), _evaluate_condition(after_pvmesh4), _evaluate_condition(after_pvmesh5)],
+        ["Mean max angle", _evaluate_max_angle(before_pvmesh),  _evaluate_max_angle(after_pvmesh1), _evaluate_max_angle(after_pvmesh2), _evaluate_max_angle(after_pvmesh3), _evaluate_max_angle(after_pvmesh4), _evaluate_max_angle(after_pvmesh5)],
+        ["Mean min angle", _evaluate_min_angle(before_pvmesh),  _evaluate_min_angle(after_pvmesh1), _evaluate_min_angle(after_pvmesh2), _evaluate_min_angle(after_pvmesh3), _evaluate_min_angle(after_pvmesh4), _evaluate_min_angle(after_pvmesh5)],
+        ["Mean scaled jacobian", _evaluate_scaled_jacobian(before_pvmesh), _evaluate_scaled_jacobian(after_pvmesh1), _evaluate_scaled_jacobian(after_pvmesh2), _evaluate_scaled_jacobian(after_pvmesh3), _evaluate_scaled_jacobian(after_pvmesh4), _evaluate_scaled_jacobian(after_pvmesh5)],
+        ["Intact vertices (%)", "Nan", _evaluate_intact_vertices2(original, mesh1), _evaluate_intact_vertices2(original, mesh2), _evaluate_intact_vertices2(original, mesh3), _evaluate_intact_vertices2(original, mesh4), _evaluate_intact_vertices2(original, mesh5)],
+        ["Mean Angle Deviation", _evaluate_angle_deviation(original), _evaluate_angle_deviation(mesh1), _evaluate_angle_deviation(mesh2), _evaluate_angle_deviation(mesh3), _evaluate_angle_deviation(mesh4), _evaluate_angle_deviation(mesh5)]
     ]
 
     print(tabulate(table_data, headers="firstrow", tablefmt="grid"))
@@ -1124,6 +1166,7 @@ def repair_meshlib(path, details=0.08):
 
     return pymesh.form_mesh(vertices, faces)
 
+"""
 def repair_contour(mesh,  voxel_size=0.01):
     vertices = np.array(mesh.vertices, dtype=np.float32)
     faces = np.array(mesh.faces, dtype=np.int32)
@@ -1156,6 +1199,71 @@ def repair_contour(mesh,  voxel_size=0.01):
     faces = contours.faces.reshape(-1, 4)[:, 1:]
 
     return pymesh.form_mesh(vertices, faces)
+"""
+
+def pymesh_to_trimesh(mesh):
+    return trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
+
+def pyvista_to_pymesh(pv_mesh):
+    vertices = pv_mesh.points 
+    faces_flat = pv_mesh.faces.reshape((-1, 4))
+    faces = faces_flat[:, 1:]
+    pymesh_mesh = pymesh.form_mesh(vertices, faces)
+    return pymesh_mesh
+
+
+def repair_contour(mesh,  voxel_size=0.01, labels=[1, 2]):
+    mesh = pymesh_to_trimesh(mesh)
+    components = mesh.split(only_watertight=True)
+
+    # Compute global bounds from the original mesh
+    global_origin = mesh.bounds[0]          # lower corner of bounding box
+    global_max = mesh.bounds[1]             # upper corner of bounding box
+    extent = global_max - global_origin
+    grid_shape = np.ceil(extent / voxel_size).astype(int)
+
+    # Create a global label array filled with -1 (background)
+    label_array = np.full(grid_shape, -1, dtype=np.int16)
+
+    for i, comp in enumerate(components):
+        # Voxelize the component
+        vgrid = comp.voxelized(voxel_size)
+
+        ########
+        # vgrid is a voxel grid object
+        # vgrid.sparse_indices: A list of indices showing which voxels are occuied by the mesh
+        # vgrid.points: The centers of these occupied voxels
+        ########
+        
+        # Compute the local voxel grid origin from voxel centers:
+        # Use the minimum point of the voxel centers and subtract half the voxel size
+        local_origin = vgrid.points.min(axis=0) - (voxel_size / 2)
+        
+        # Compute offset (in voxels) from the global origin
+        offset = ((local_origin - global_origin) / voxel_size).astype(int)
+        
+        # For each occupied voxel in the component, map it into the global grid
+        for voxel in vgrid.sparse_indices:
+            global_idx = tuple(voxel + offset)
+            if all(0 <= gi < s for gi, s in zip(global_idx, grid_shape)):
+                label_array[global_idx] = labels[i]
+
+    # Create a PyVista ImageData grid.
+    # Note: The dimensions for ImageData are (#cells + 1) along each axis.
+    grid = pv.ImageData(dimensions=np.array(label_array.shape) + 1,
+                        origin=global_origin,
+                        spacing=(voxel_size, voxel_size, voxel_size))
+
+    # Expand the voxel-based label array to the grid’s point data.
+    point_labels = np.zeros(grid.dimensions, dtype=np.int16)
+    point_labels[:-1, :-1, :-1] = label_array
+
+    grid.point_data["labels"] = point_labels.flatten(order="F")
+    grid.set_active_scalars("labels")
+
+    # Now contour the labeled volume.
+    contours = grid.contour_labeled(len(labels), smoothing=True, output_mesh_type='triangles')
+    return contours
 
 
 def compute_median_edge_length(mesh):
@@ -1209,3 +1317,83 @@ def align_submesh_boundary2(remaining_mesh, repaired_submesh):
     # Rebuild submesh with aligned vertices
     repaired_submesh = pymesh.form_mesh(repaired_vertices, repaired_submesh.faces)
     return repaired_submesh
+
+
+def vis_for_paper(
+    original, mesh1, mesh2, mesh3, mesh4, mesh5
+):
+    # CAUTION: Mesh4 is pyvista
+    intersections = pymesh.detect_self_intersection(original)
+    intersecting_faces = set(intersections.flatten())
+
+    original_pv = convert_to_pyvista(original)
+    mesh1_pv = convert_to_pyvista(mesh1)
+    mesh2_pv = convert_to_pyvista(mesh2)
+    mesh3_pv = convert_to_pyvista(mesh3)
+    #mesh4_pv = convert_to_pyvista(mesh4)
+    mesh5_pv = convert_to_pyvista(mesh5)
+
+    scalars = [
+        1 if i in intersecting_faces else 0
+        for i in range(original_pv.n_faces)
+    ]
+    original_pv.cell_data["intersections"] = scalars
+
+    plotter = pv.Plotter(shape=(2, 3), notebook=True)
+    
+    # Subplot (0, 0): Original
+    plotter.subplot(0, 0)
+    plotter.add_mesh(
+        original_pv,
+        show_edges=True,
+        edge_color='black',
+        line_width=0.3,
+        label='Original',
+        scalars="intersections",
+        cmap=["white", "red"],
+        show_scalar_bar=False
+    )
+    plotter.add_text('Original', position='upper_left', font_size=10)
+
+    # Subplot (0, 1): Mesh 1
+    plotter.subplot(0, 1)
+    plotter.add_mesh(
+        mesh1_pv, color='white', show_edges=True, edge_color='black',
+        line_width=0.3, label='Mesh 1'
+    )
+    plotter.add_text('Method1', position='upper_left', font_size=10)
+
+    # Subplot (0, 2): Mesh 2
+    plotter.subplot(0, 2)
+    plotter.add_mesh(
+        mesh2_pv, color='white', show_edges=True, edge_color='black',
+        line_width=0.3, label='Mesh 2'
+    )
+    plotter.add_text('Method2', position='upper_left', font_size=10)
+
+    # Subplot (1, 0): Mesh 3
+    plotter.subplot(1, 0)
+    plotter.add_mesh(
+        mesh3_pv, color='white', show_edges=True, edge_color='black',
+        line_width=0.3, label='Mesh 3'
+    )
+    plotter.add_text('Method3', position='upper_left', font_size=10)
+
+    # Subplot (1, 1): Mesh 4
+    plotter.subplot(1, 1)
+    plotter.add_mesh(
+        mesh4, show_edges=True, edge_color='black',
+        line_width=0.3, label='Mesh 4', scalars="BoundaryLabels", cmap="viridis", show_scalar_bar=False
+    )
+    plotter.add_text('Method4', position='upper_left', font_size=10)
+
+    # Subplot (1, 2): Mesh 5
+    plotter.subplot(1, 2)
+    plotter.add_mesh(
+        mesh5_pv, color='white', show_edges=True, edge_color='black',
+        line_width=0.3, label='Mesh 5'
+    )
+    plotter.add_text('Method5', position='upper_left', font_size=10)
+
+    plotter.link_views()
+    display(plotter.show(jupyter_backend='trame'))
